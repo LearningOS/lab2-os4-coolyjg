@@ -37,6 +37,37 @@ pub struct MemorySet {
     areas: Vec<MapArea>,
 }
 
+impl MemorySet{
+    pub fn check_mapped(&self, vpn: VirtPageNum) -> bool{
+        for area in self.areas.iter(){
+            if area.check_mapped(vpn){
+                return true;
+            }
+        }
+        false
+    }
+
+    pub fn check_unmapped(&self, vpn: VirtPageNum) -> bool{
+        for area in self.areas.iter(){
+            if area.check_mapped(vpn){
+                return false;
+            }
+        }
+        true
+    }
+
+    pub fn remove_vpn(&mut self, vpn: VirtPageNum) -> bool{
+        for i in 0..self.areas.len(){
+            if self.areas[i].check_mapped(vpn){
+                self.areas[i].unmap(&mut self.page_table);
+                self.areas.remove(i);
+                return true;
+            }
+        }
+        false
+    }
+}
+
 impl MemorySet {
     pub fn new_bare() -> Self {
         Self {

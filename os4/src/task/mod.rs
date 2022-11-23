@@ -15,6 +15,7 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
+use crate::mm::{VirtAddr, MapPermission};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
@@ -174,6 +175,37 @@ impl TaskManager {
         drop(inner);
         ret
     }
+
+    fn mmap(&self, start: usize, len: usize, port: usize)-> isize{
+        let mut inner = self.inner.exclusive_access();
+        let cur = inner.current_task;
+        let sva = VirtAddr::from(start).floor();
+        let eva = VirtAddr::from(start+len).ceil();
+        for va in sva.0..eva.0{
+            if inner.tasks[cur].memory_set.check_mapped(va.into()){
+                return -1;
+            }
+        }
+        let permission = MapPermission::from_bits(((port<<1) | 0x10) as u8).unwrap();
+        inner.tasks[cur].memory_set.insert_framed_area(sva.into(), eva.into(), permission);
+        0
+    }
+    
+    fn munmap(&self, start: usize, len: usize) -> isize{
+        let mut inner = self.inner.exclusive_access();
+        let sva = VirtAddr::from(start).floor();
+        let eva = VirtAddr::from(start+len).ceil();
+        let cur = inner.current_task;
+        for va in sva.0..eva.0{
+            if inner.tasks[cur].memory_set.check_unmapped(va.into()){
+                return -1;
+            }
+        }
+        for va in sva.0..eva.0{
+            inner.tasks[cur].memory_set.remove_vpn(va.into());
+        }
+        0
+    }
 }
 
 /// Run the first task in task list.
@@ -229,4 +261,12 @@ pub fn increase_cur_syscall(id: usize) {
 
 pub fn get_cur_syscall() -> [u32; MAX_SYSCALL_NUM]{
     TASK_MANAGER.get_current_task_syscall()
+}
+
+pub fn mmap(start: usize, len: usize, port: usize) -> isize{
+    TASK_MANAGER.mmap(start, len, port)
+}
+
+pub fn munmap(start: usize, len: usize) -> isize{
+    TASK_MANAGER.munmap(start, len)
 }

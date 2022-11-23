@@ -1,8 +1,9 @@
 //! Process management syscalls
 
-use crate::config::MAX_SYSCALL_NUM;
+use crate::config::{MAX_SYSCALL_NUM, PAGE_SIZE};
 use crate::mm::{VirtAddr, virtaddr2phyaddr};
-use crate::task::{exit_current_and_run_next, suspend_current_and_run_next, TaskStatus, get_cur_start_time, get_cur_syscall};
+use crate::task::{exit_current_and_run_next, suspend_current_and_run_next, 
+    TaskStatus, get_cur_start_time, get_cur_syscall, mmap, munmap};
 use crate::timer::get_time_us;
 
 #[repr(C)]
@@ -60,14 +61,22 @@ pub fn sys_mmap(start: usize, len: usize, port: usize) -> isize {
     if start % 0x1000 != 0{
         return -1;
     }
+    if port & !0x7 != 0 || port == 0{
+        return -1;
+    }
+    let mut ll = len;
+    if len % 0x1000 !=0 {
+        ll = (len/PAGE_SIZE + 1) * PAGE_SIZE;
+    }
 
-
-
-    0
+    mmap(start, ll, port)
 }
 
-pub fn sys_munmap(_start: usize, _len: usize) -> isize {
-    -1
+pub fn sys_munmap(start: usize, len: usize) -> isize {
+    if start % PAGE_SIZE != 0 || len % PAGE_SIZE !=0{
+        return -1;
+    }
+    munmap(start, len)
 }
 
 // YOUR JOB: 引入虚地址后重写 sys_task_info
