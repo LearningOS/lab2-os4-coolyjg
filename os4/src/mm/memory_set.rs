@@ -56,15 +56,14 @@ impl MemorySet{
         true
     }
 
-    pub fn remove_vpn(&mut self, vpn: VirtPageNum) -> bool{
+    pub fn remove_vpn(&mut self, vpn: VirtPageNum){
         for i in 0..self.areas.len(){
             if self.areas[i].check_mapped(vpn){
                 self.areas[i].unmap(&mut self.page_table);
                 self.areas.remove(i);
-                return true;
+                return;
             }
         }
-        false
     }
 }
 

@@ -15,7 +15,7 @@ mod switch;
 mod task;
 
 use crate::loader::{get_app_data, get_num_app};
-use crate::mm::{VirtAddr, MapPermission};
+use crate::mm::{VirtAddr, MapPermission, VirtPageNum};
 use crate::sync::UPSafeCell;
 use crate::trap::TrapContext;
 use alloc::vec::Vec;
@@ -179,30 +179,30 @@ impl TaskManager {
     fn mmap(&self, start: usize, len: usize, port: usize)-> isize{
         let mut inner = self.inner.exclusive_access();
         let cur = inner.current_task;
-        let sva = VirtAddr::from(start).floor();
-        let eva = VirtAddr::from(start+len).ceil();
-        for va in sva.0..eva.0{
-            if inner.tasks[cur].memory_set.check_mapped(va.into()){
+        let svpn = VirtPageNum::from(VirtAddr::from(start));
+        let evpn = VirtAddr::from(start+len).ceil();
+        for vpn in svpn.0..evpn.0{
+            if inner.tasks[cur].memory_set.check_mapped(vpn.into()){
                 return -1;
             }
         }
         let permission = MapPermission::from_bits(((port<<1) | 0x10) as u8).unwrap();
-        inner.tasks[cur].memory_set.insert_framed_area(sva.into(), eva.into(), permission);
+        inner.tasks[cur].memory_set.insert_framed_area(svpn.into(), evpn.into(), permission);
         0
     }
     
     fn munmap(&self, start: usize, len: usize) -> isize{
         let mut inner = self.inner.exclusive_access();
-        let sva = VirtAddr::from(start).floor();
-        let eva = VirtAddr::from(start+len).ceil();
+        let svpn = VirtPageNum::from(VirtAddr::from(start));
+        let evpn = VirtAddr::from(start+len).ceil();
         let cur = inner.current_task;
-        for va in sva.0..eva.0{
-            if inner.tasks[cur].memory_set.check_unmapped(va.into()){
+        for vpn in svpn.0..evpn.0{
+            if inner.tasks[cur].memory_set.check_unmapped(vpn.into()){
                 return -1;
             }
         }
-        for va in sva.0..eva.0{
-            inner.tasks[cur].memory_set.remove_vpn(va.into());
+        for vpn in svpn.0..evpn.0{
+            inner.tasks[cur].memory_set.remove_vpn(vpn.into());
         }
         0
     }
